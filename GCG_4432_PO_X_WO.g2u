@@ -1,0 +1,155 @@
+Program.Sub.ScreenSU.Start
+Gui.form..Create
+Gui.form..Caption("")
+Gui.form..Size(2790,2205)
+Gui.form..MinX(0)
+Gui.form..MinY(0)
+Gui.form..Position(0,0)
+Gui.form..BackColor(-2147483633)
+Gui.form..MousePointer(0)
+Gui.form..Event(UnLoad,form_UnLoad)
+Gui.form.frame1.Create(Frame)
+Gui.form.frame1.Size(2430,1680)
+Gui.form.frame1.Position(120,135)
+Gui.form.frame1.Caption("Select Work Order")
+Gui.form.lbl1.Create(Label,"Work Order",True,1935,255,0,345,405,True,0,"Arial",8,-2147483633,0)
+Gui.form.lbl1.Parent("frame1")
+Gui.form.txtWO.Create(TextBox,"",True,1020,300,0,345,645,True,0,"Arial",8,-2147483643,1)
+Gui.form.txtWO.MaxLength(6)
+Gui.form.txtWO.Parent("frame1")
+Gui.form.cmdBrowseWO.Create(Button)
+Gui.form.cmdBrowseWO.Size(600,375)
+Gui.form.cmdBrowseWO.Position(1485,600)
+Gui.form.cmdBrowseWO.Caption("^")
+Gui.form.cmdBrowseWO.Event(Click,cmdBrowseWO_Click)
+Gui.form.cmdBrowseWO.Parent("frame1")
+Gui.form.cmdOK.Create(Button)
+Gui.form.cmdOK.Size(645,375)
+Gui.form.cmdOK.Position(345,1095)
+Gui.form.cmdOK.Caption("OK")
+Gui.form.cmdOK.Event(Click,cmdOK_Click)
+Gui.form.cmdOK.Parent("frame1")
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+'BN Apr 4, 2017
+'This project will create a Preprocessor for the customer Created Purchase Order by Work Order Report (PO_X_Work_Order_020617.rpt)
+'The only function is to add the ability to search for a Work Order, and pass this WO to the report.
+'The report will not be changed.
+'The browser should allow for the selection of just the distinct Job number, the suffix is not queried for.
+
+F.Intrinsic.Control.SetErrorHandler("Main_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+F.ODBC.Connection!con.OpenConnection(V.Ambient.PDSN,V.Ambient.PUser,V.Ambient.PPass)
+gui.form..Show
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Main_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4432_PO_X_WO.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+Program.Sub.Main.End
+
+Program.Sub.cmdBrowseWO_Click.Start
+F.Intrinsic.Control.SetErrorHandler("cmdBrowseWO_Click")
+F.Intrinsic.Control.ClearErrors
+
+v.Local..BulkDeclareString(sError, sRet)
+
+Function.Intrinsic.UI.SetBrowserHotTypeAhead(true)
+Function.Intrinsic.UI.Browser("Select a Job number","con","Select Distinct Job from V_job_header","Job","1000",Variable.Local.sRet)
+Function.Intrinsic.Control.If(Variable.Local.sRet,<>,"***CANCEL***")
+	Function.Intrinsic.String.Split(Variable.Local.sRet,"*!*",Variable.Local.sRet)
+	gui.form.txtWO.Text(v.Local.sRet(0))
+f.Intrinsic.Control.Else
+	gui.form.txtWO.Text("")
+f.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("cmdBrowseWO_Click")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4432_PO_X_WO.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+Program.Sub.cmdBrowseWO_Click.End
+
+Program.Sub.cmdOK_Click.Start
+F.Intrinsic.Control.SetErrorHandler("cmdOK_Click")
+F.Intrinsic.Control.ClearErrors
+
+v.Local..BulkDeclareString(sError, sSQL, sVal, sParam)
+v.Local..BulkDeclareLong(iCount, iBIRunID, iBILogID, iRptID)
+
+'Check valid WO
+f.Intrinsic.String.Build("select count(*) from V_Job_Header where Job = '{0}'", v.Screen.form!txtWO.Text,v.Local.sSQL)
+f.ODBC.Connection!con.ExecuteAndReturn(v.Local.sSQL,v.Local.iCount)
+f.Intrinsic.Control.If(v.Local.iCount,=,0)
+	f.Intrinsic.UI.Msgbox("Invalid Work Order number. Please select again","Invalid data")
+	gui.form.txtWO.Text("")
+	f.Intrinsic.Control.ExitSub
+f.Intrinsic.Control.EndIf
+
+gui.form..Visible(False)
+f.Intrinsic.UI.InvokeWaitDialog("Logging report")
+f.Global.BI.GetIDFromName("PO_X_Work_Order_020617.rpt",True,v.Local.iRptID)
+
+'Log Report
+F.Global.BI.GetRunID(V.Local.iBIRunID)
+F.Global.BI.StartLogging(V.Local.iBIRunID,v.Local.iRptID,-1,"",V.Local.iBILogID)
+
+'Stop Logging
+F.Global.BI.StopLogging(V.Local.iBILogID)
+
+v.Local.sVal.Set(v.Screen.form!txtWO.Text)
+V.Local.sParam.Set("Work Order #")
+
+f.Intrinsic.UI.CloseWaitDialog
+
+F.Global.BI.RunReportPreProcessor(V.Local.iBIRunID,V.Local.iBILogID,V.Local.sParam,V.Local.sVal,"",-1,True,"",-1,"",-1,"","",V.Local.iBIRunID)
+Function.ODBC.Connection!con.Close
+f.Intrinsic.Control.End
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("cmdOK_Click")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4432_PO_X_WO.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.cmdOK_Click.End
+
+Program.Sub.form_UnLoad.Start
+F.Intrinsic.Control.SetErrorHandler("form_UnLoad")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+f.ODBC.Connection!con.Close
+f.Intrinsic.Control.End
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("form_UnLoad")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4432_PO_X_WO.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.form_UnLoad.End
+
+Program.Sub.Comments.Start
+${$0$}$$}$$}$4/4/2017 9:52:04 PM$}$False
+Program.Sub.Comments.End
